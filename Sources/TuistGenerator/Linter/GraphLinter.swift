@@ -86,17 +86,19 @@ public class GraphLinter: GraphLinting {
             }
         }
     }
-
+    
     private func lintDependencies(graphTraverser: GraphTraversing, config: Config) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
-            toDependencies.flatMap { toDependency -> [LintingIssue] in
-                guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
-                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
-                guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
-                guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
-                return lintDependency(from: fromTarget, to: toTarget)
+        
+        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, _ -> [LintingIssue] in
+            guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency,
+                  let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
+
+            let lintingIssues = graphTraverser.directTargetDependencies(path: fromTargetPath,
+                                                                         name: fromTargetName).flatMap { toDependency -> [LintingIssue] in
+                return lintDependency(from: fromTarget, to: toDependency)
             }
+            return lintingIssues
         }
 
         issues.append(contentsOf: dependencyIssues)
@@ -108,7 +110,7 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
+    private func lintDependency(from: GraphTarget, to: GraphTargetReference) -> [LintingIssue] {
         let fromPlatforms = from.target.supportedPlatforms
         let toPlatforms = to.target.supportedPlatforms
 
